@@ -1,0 +1,6 @@
+{
+  "name": "Mojo Rush - Coffee Mini-Game",
+  "description": "Mix It Fast. Find Your Mojo! Fast-paced coffee-making challenge and marketing mini-game for Mojo Coffee, Texas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
