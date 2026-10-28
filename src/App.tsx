@@ -58,9 +58,9 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-const HERO_CUP_IMG = '/src/assets/images/mojo_coffee_cup_hero_1793125906561.jpg';
-const DRIVE_THRU_IMG = '/src/assets/images/mojo_drive_thru_scene_1793125907482.jpg';
-const FRAPPE_IMG = '/src/assets/images/mojo_frappe_showcase_1793125906895.jpg';
+import HERO_CUP_IMG from './assets/images/mojo_coffee_cup_hero_1793125906561.jpg';
+import DRIVE_THRU_IMG from './assets/images/mojo_drive_thru_scene_1793125907482.jpg';
+import FRAPPE_IMG from './assets/images/mojo_frappe_showcase_1793125906895.jpg';
 
 export default function App() {
   // Navigation & State Machine
@@ -121,20 +121,7 @@ export default function App() {
 
   // Load high scores from backend with fallback
   const fetchScores = useCallback(async () => {
-    try {
-      const res = await fetch('/api/scores');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.scores) {
-          setHighScores(data.scores);
-          return;
-        }
-      }
-    } catch {
-      // Local fallback
-    }
-
-    // Default seeded local high scores
+    // 1. Load from localStorage or initialize with Mojo founders
     const local = localStorage.getItem('mojo_local_scores');
     if (local) {
       try {
@@ -142,6 +129,69 @@ export default function App() {
       } catch {
         // Ignored
       }
+    } else {
+      const defaultScores: HighScoreEntry[] = [
+        {
+          id: 'score-1',
+          name: 'Austin (Burnet Founder)',
+          score: 480,
+          rank: 'MOJO LEGEND',
+          ordersCompleted: 7,
+          difficulty: 'DRIVE_THRU_DASH',
+          date: 'Oct 27, 2026'
+        },
+        {
+          id: 'score-2',
+          name: 'Forrest (Cedar Park)',
+          score: 435,
+          rank: 'RUSH MASTER',
+          ordersCompleted: 6,
+          difficulty: 'DRIVE_THRU_DASH',
+          date: 'Oct 26, 2026'
+        },
+        {
+          id: 'score-3',
+          name: 'Lloyd (Georgetown)',
+          score: 390,
+          rank: 'RUSH MASTER',
+          ordersCompleted: 5,
+          difficulty: 'MORNING_RUSH',
+          date: 'Oct 25, 2026'
+        },
+        {
+          id: 'score-4',
+          name: 'Marble Falls Racer',
+          score: 320,
+          rank: 'RUSH MASTER',
+          ordersCompleted: 4,
+          difficulty: 'DRIVE_THRU_DASH',
+          date: 'Oct 24, 2026'
+        },
+        {
+          id: 'score-5',
+          name: 'Liberty Hill Barista',
+          score: 260,
+          rank: 'MOJO REGULAR',
+          ordersCompleted: 4,
+          difficulty: 'MORNING_RUSH',
+          date: 'Oct 23, 2026'
+        }
+      ];
+      setHighScores(defaultScores);
+      localStorage.setItem('mojo_local_scores', JSON.stringify(defaultScores));
+    }
+
+    // 2. Attempt backend sync if running full-stack
+    try {
+      const res = await fetch('/api/scores');
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const data = await res.json();
+        if (data.scores) {
+          setHighScores(data.scores);
+        }
+      }
+    } catch {
+      // Expected on static deployments like GitHub Pages
     }
   }, []);
 
@@ -321,26 +371,35 @@ export default function App() {
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     };
 
-    // Try posting to backend
-    fetch('/api/scores', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newEntry)
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.scores) {
-          setHighScores(data.scores);
-        }
+    // Always update local storage first so high scores record immediately
+    setHighScores((prev) => {
+      const updated = [...prev, newEntry].sort((a, b) => b.score - a.score).slice(0, 10);
+      localStorage.setItem('mojo_local_scores', JSON.stringify(updated));
+      return updated;
+    });
+
+    // Optional backend sync if running full-stack
+    try {
+      fetch('/api/scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEntry)
       })
-      .catch(() => {
-        // Offline / fallback to local storage
-        setHighScores((prev) => {
-          const updated = [...prev, newEntry].sort((a, b) => b.score - a.score).slice(0, 10);
-          localStorage.setItem('mojo_local_scores', JSON.stringify(updated));
-          return updated;
-        });
-      });
+        .then((res) => {
+          if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+            return res.json();
+          }
+          return null;
+        })
+        .then((data) => {
+          if (data && data.scores) {
+            setHighScores(data.scores);
+          }
+        })
+        .catch(() => {});
+    } catch {
+      // Ignored on static hosts
+    }
   }, [ordersCompleted, perfectOrders, maxStreak, score, playerName, difficulty]);
 
   // Ingredient Tap / Click Handler
